@@ -1,0 +1,27 @@
+<div id="banner">
+	<div class="center">
+		<h1><% list %></h1>
+	</div>
+</div>
+<div id="content">
+	<div id="list" class="center">
+		<div class="left">
+			<ul>
+				<% for each item in archive %>
+				<li>
+					<a href="/list/example/message/1234"><h2><% item.subject %></h2></a>
+					<p><% item.body %></p>
+				</li>
+				<% end %>
+			</ul>
+		</div>
+		<div class="right">
+			<h2>Join&nbsp;<% list %></h2>
+			<form action="/list/create" method="post" accept-charset="utf-8">
+				<p><label for="name">Your Name:</label><br><input type="text" name="name"></p>
+				<p><label for="email">Email Address</label><br><input type="email" name="email"></p>
+				<p><input type="submit" value="Submit"></p>
+			</form>
+		</div>
+	</div>
+</div>
