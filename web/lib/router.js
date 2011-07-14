@@ -11,7 +11,7 @@
 var parse = require('url').parse;
 
 //creates router
-exports.router = function()
+exports.router = function(cache) // TODO: use this cache to save the views, need to think of best way to do that.
 {
   //router, to be passed to `require('http').createServer()`
   var router = function(req, res)

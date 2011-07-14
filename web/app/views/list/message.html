@@ -1,6 +1,8 @@
 <div id="banner">
 	<div class="center">
-		<h1><% list %></h1>
+		<div class="left">
+			<h1><a href="/list/<% list %>"><% list %></a></h1>
+		</div>
 	</div>
 </div>
 <div id="content">
@@ -11,9 +13,10 @@
 		</div>
 		<div class="right">
 			<h2>Join&nbsp;<% list %></h2>
-			<form action="/list/create" method="post" accept-charset="utf-8">
-				<p><label for="name">Your Name:</label><br><input type="text" name="name"></p>
-				<p><label for="email">Email Address</label><br><input type="email" name="email"></p>
+			<form action="/list/<% list %>/join" method="post" accept-charset="utf-8">
+				<p><label for="first_name">First Name:</label><br><input type="text" name="first_name"></p>
+				<p><label for="last_name">Last Name:</label><br><input type="text" name="last_name"></p>
+				<p><label for="email">Email Address:</label><br><input type="email" name="email"></p>
 				<p><input type="submit" value="Submit"></p>
 			</form>
 		</div>
