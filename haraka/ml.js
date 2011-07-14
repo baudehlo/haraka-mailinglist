@@ -146,19 +146,113 @@ exports.found_list = function (next, conn, recip, listname, command, key, list_i
                 return next(recip)
         }
     }
-    this.send_list_mail(next, conn, recip, listname, command, key, list_id, list_email, list_name);
+    this.send_list_mail(next, conn, recip, listname, list_id, list_email, list_name);
 }
 
-exports.send_list_mail = function (next, conn, recip, listname, command, key, list_id, list_email, list_name) {
-    
+exports.should_moderate = function (mail_from, list_id, cb) {
+    // TODO: implement
+    cb(false);
 }
 
+// check should the post be moderated - then send to moderation queue
+// if not, send to everyone. But munge Reply-To if required.
+exports.send_list_mail = function (next, conn, recip, listname, list_id, list_email, list_name) {
+    var plugin = this;
+    this.should_moderate(conn.transaction.mail_from, list_id, function (modflag) {
+        if (modflag) {
+            return plugin.send_to_moderation_queue(next, conn, recip, listname, list_id, list_email, list_name);
+        }
+        // otherwise send normally
+        db.execute("SELECT email, name FROM User, ListMember WHERE user_id = User.id AND list_id = ?",
+                    [list_id],
+        function (err, rows) {
+            if (err) {
+                plugin.logerror("Error getting list users: " + err);
+                return next();
+            }
+            // Fixup the email (TODO: we should probably clone the transaction here because we don't want it changed for every RCPT TO)
+            conn.transaction.remove_header('List-Unsubscribe');
+            conn.transaction.add_header('List-Unsubscribe', list_email.replace('@', '-unsub@'));
+            conn.transaction.remove_header('List-ID');
+            conn.transaction.add_header('List-ID', list_name + " <" + list_email.replace('@', '.') + ">");
+            // TODO: Add other headers here too.
+
+            var contents = conn.transaction.data_lines.join("");
+
+            var num_to_send = rows.length;
+            // for each user
+            for (var i=0,l=rows.length; i<l; i++) {
+                var to = rows[i].email;
+                var verp = verp_email(to);
+
+                var from = list_email.replace('@', '-bouncev-' + verp + '@');
+                
+                var outnext = function (code, msg) {
+                    num_to_send--;
+                    if (num_to_send === 0) {
+                        next();
+                    }
+                };
+
+                outbound.send_email(from, to, contents, outnext);
+            }
+        });
+    });
+}
+
+// bounce for initial subscribe messages
 exports.list_bounce = function (next, conn, recip, key, list_id, list_email, list_name) {
-
+    var plugin = this;
+    db.execute("SELECT id, confirmed, bounce_count FROM User WHERE key = ?", [key], function(err, rows) {
+        if (err) {
+            plugin.logerror("Error getting user: " + err);
+            return next();
+        }
+        if (rows.length) {
+            plugin.process_bounce(next, conn, rows[0], list_id, list_email, list_name)
+        }
+    })
 }
 
+// bounce for normal verp messages
 exports.list_bouncev = function (next, conn, recip, key, list_id, list_email, list_name) {
+    var plugin = this;
+    var email = unverp_email(key);
+    db.execute("SELECT id, confirmed, bounce_count FROM User WHERE email = ?", [email], function (err, rows) {
+        if (err) {
+            plugin.logerror("Error getting user: " + err);
+            return next();
+        }
+        if (rows.length) {
+            plugin.process_bounce(next, conn, rows[0], list_id, list_email, list_name)
+        }
+    })
+}
 
+var MAX_BOUNCES = 5;
+
+// TODO: We need some way of resetting bounce_count!
+
+// if confirmed = false, delete user, stop.
+// increment bounce_count
+// if bounce_count == list.max_bounces, send warning, stop.
+// if bounce_count > list.max_bounces, delete user, stop.
+exports.process_bounce = function (next, conn, user, list_id, list_email, list_name) {
+    var plugin = this;
+    if (!user.confirmed) {
+        return plugin.delete_user(user.id, next);
+    }
+    // TODO: should really  do this in the DB to ensure consistency
+    bounce_count = bounce_count + 1;
+
+    // TODO: make per-list?
+    if (bounce_count === MAX_BOUNCES) {
+        return plugin.send_bounce_warning(next, conn, user, list_id, list_email, list_name)
+    }
+
+    if (bounce_count > MAX_BOUNCES) {
+        return plugin.delete_user(user.id, next);
+    }
 }
 
 exports.list_subscribe = function (next, conn, recip, key, list_id, list_email, list_name) {
@@ -301,7 +395,11 @@ exports.list_subscribe_send_confirm = function (next, user_id, conn, recip, list
 
 // I need to improve this a bit I'm sure...
 function verp_email (email) {
-    email.replace(/@/, '=');
+    return email.replace(/@/, '=');
+}
+
+function unverp_email (verp) {
+    return verp.replace(/=/, '@');
 }
 
 exports.send_welcome_email = function (next, conn, recip, list_id, list_email, list_name) {
