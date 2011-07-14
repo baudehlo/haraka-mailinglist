@@ -1,7 +1,6 @@
 exports.setup = function(router){
 	
 	router.get('/', function(req, res) {
-		console.log(req.session.data)
 		getFeatured(function(err,locals){
 			locals.title = 'Home';
 			if(err) res.render('error', {title:'', error:err});
