@@ -15,7 +15,6 @@
 	
 	<link rel="shortcut icon" href="/favicon.ico">
 	<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-	<link href='http://fonts.googleapis.com/css?family=Open+Sans|Cabin+Sketch:700&v2' rel='stylesheet' type='text/css'>
 	<link rel="stylesheet" href="/css/style.css?v=2">
 	<script src="/js/libs/modernizr-1.7.min.js"></script>
 </head>
@@ -23,15 +22,12 @@
 	<header>
 		<div class="center">
 			<div class="left">
-				<a href="/"><h1>GRPS.co</h1></a>
+				<a href="/"><img src="/images/logo.png" alt="HarakaMail" id="logo"></a>
 			</div>
 			<div class="right">
 				<form id="search" action="/search" method="get" accept-charset="utf-8">
-					<input type="search" name="q" placeholder="Search"><input type="submit" value="&#9654;">
-				</form>
-				
-				<a id="register-btn" href="#/register" onClick="$('#register').toggle(); $('#login').hide()">Register</a> 
-				<a id="login-btn" href="#/login" onClick="$('#login').toggle(); $('#register').hide()">Login</a> 
+					<input type="search" name="q"><input type="submit" value="search">
+				</form><a href="#/login" onClick="$('#login').toggle()">Login</a> 
 			</div>
 		</div>
 	</header>
@@ -54,19 +50,6 @@
 					<p><label for="email">Email Address:</label><br><input type="email" name="email"></p>
 					<p><label for="password">Password:</label><br><input type="password" name="password"></p>
 					<p><a href="/forgot_password">Forgot Password</a><input type="submit" value="Submit" ></p>
-				</form>
-			</div>
-		</div>
-	</div>
-	
-	<div id="register">
-		<div class="center">
-			<div>
-				<h2>Register</h2>
-				<form action="/register" method="post" accept-charset="utf-8">
-					<p><label for="email">Email Address:</label><br><input type="email" name="email"></p>
-					<p><label for="password">Password:</label><br><input type="password" name="password"></p>
-					<p><input type="submit" value="Submit" ></p>
 				</form>
 			</div>
 		</div>

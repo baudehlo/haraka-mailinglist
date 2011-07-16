@@ -4,11 +4,10 @@
 			<h1>Mailing list made easy</h1>
 			<h2>
 			Faster, better and created by a team that cares. <br>
-			and it's <i>FREE!</i><br>
 			</h2>
 		</div>
 		<div class="right">
-			<img id="homescreen" src="/images/homescreen.png">
+			<img id="homescreen" src="">
 		</div>
 	</div>
 </div>
@@ -24,7 +23,7 @@
 				<ul>
 					<% for each feature in featured %>
 					<li>
-						<a href="/list/example"><h3><% feature.subject %></h3></a>
+						<h3><a href="/list/groupname"><% feature.subject %></a></h3>
 						<p><% feature.body %></p>
 					</li>
 					<% end %>
@@ -33,9 +32,10 @@
 		</div>
 		<div class="right">
 			<h2>Create your own mailing list</h2>
-			<form action="/list/new" method="post" accept-charset="utf-8">
+			<form action="/register" method="post" accept-charset="utf-8">
 				<p><label for="name">List Name:</label><br><input type="text" name="name"></p>
 				<p><label for="email">Email Address:</label><br><input type="email" name="email"></p>
+				<p><label for="password">Password:</label><br><input type="password" name="password"></p>
 				<p><input type="submit" value="Create"></p>
 			</form>
 		</div>

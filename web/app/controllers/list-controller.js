@@ -1,15 +1,6 @@
 exports.setup = function(router){
 
-	router.post('/list/new', function(req, res) {
-		req.getParams(function(params){
-			createNewList(params,function(err){
-				if(err) res.render('error', {title:'', error:err});
-				else res.render('templates/thanks', {title:'Thanks',message:'an email will be sent to you soon to confirm.'});
-			});
-		});
-	})
-
-	.get('/list/*', function(req, res, list) {
+	router.get('/list/*', function(req, res, list) {
 		getArchive({list:list},function(err,locals){
 			locals.title = list;
 			if(err) res.render('error', {title:locals.title,error:err});
@@ -37,9 +28,6 @@ exports.setup = function(router){
 }
 
 // temporary data methods until I get a db hookup
-function createNewList(values,callback) {
-	callback(null);
-}
 
 function joinList(values,callback) {
 	callback(null);

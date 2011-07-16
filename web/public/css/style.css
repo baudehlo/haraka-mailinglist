@@ -1,4 +1,3 @@
-
 /* ==== Scroll down to find where to put your styles :) ==== */
 
 /*  HTML5 ✰ Boilerplate  */
@@ -16,8 +15,8 @@ time, mark, audio, video {
   padding: 0;
   border: 0;
   font-size: 100%;
-  font: inherit;
   vertical-align: baseline;
+	font-family: Helvetica, Arial, Verdana, sans-serif;
 }
 
 article, aside, details, figcaption, figure,
@@ -36,8 +35,8 @@ table { border-collapse: collapse; border-spacing: 0; }
 hr { display: block; height: 1px; border: 0; border-top: 1px solid #ccc; margin: 1em 0; padding: 0; }
 input, select { vertical-align: middle; }
 
-body { font:13px/1.231 Helvetica, Arial, sans-serif; *font-size:small; } 
-select, input, textarea, button { font:99% Helvetica, Arial, sans-serif; }
+body { font:13px/1.231 Helvetica, Arial, Verdana, sans-serif; *font-size:small; } 
+select, input, textarea, button { font:99% Helvetica, Arial, Verdana, sans-serif; }
 pre, code, kbd, samp { font-family: monospace, sans-serif; }
 
 html { overflow-y: scroll; }
@@ -68,184 +67,18 @@ input:invalid, textarea:invalid { border-radius: 1px; -moz-box-shadow: 0px 0px 5
 
 ::-moz-selection{ background: #FF5E99; color:#fff; text-shadow: none; }
 ::selection { background:#FF5E99; color:#fff; text-shadow: none; }
-a:link { -webkit-tap-highlight-color: #FF5E99; }
+/*a:link { -webkit-tap-highlight-color: #FF5E99; }*/
 
 button {  width: auto; overflow: visible; }
 .ie7 img { -ms-interpolation-mode: bicubic; }
 
-body, select, input, textarea {  color: #444; }
-h1, h2, h3, h4, h5, h6 { font-weight: 100; }
-a, a:active, a:visited { color: #607890; }
-a:hover { color: #036; }
-
-
-/*
-    \\ ========================================== //
-*/
-
-body header { background: #FFF; height: 35px; border-bottom: 1px #555 solid;}
-.center { margin: 0 auto; width: 960px; clear: both;}
-.left { float: left; }
-.right { float: right; }
-
-#logo { margin: 3px; }
-#home-banner { background: #CCC; height: 215px; padding-top: 10px; }
-#banner { background: #CCC; height: 55px; padding-top: 10px; }
-#homescreen { margin-top: 15px;}
-
-h1 { font-size: 35px; }
-h2 { font-size: 16px; }
-h3 { font-size: 14px; }
-
-#content { padding-top: 15px; min-height: 400px;}
-#about { width: 300px; padding-right: 30px;}
-#featured { width: 300px; }
-#featured li { margin-bottom: 10px; }
-
-#list .left { width: 660px; }
-#list .right { padding-left: 10px; width: 290px; }
-#list li { padding-bottom: 10px; }
-
-body footer { clear: both; background: #555; height: 200px; padding-top: 20px;}
-
-.inset {
-   -moz-box-shadow: inset 0 3px 8px rgba(0,0,0,.4);
-   -webkit-box-shadow: inset 0 3px 8px rgba(0,0,0,.4);
-   box-shadow: inset 0 3px 8px rgba(0,0,0,.24);
-}
-
-body { padding:50px 100px; font:13px/150% Verdana, Tahoma, sans-serif; }
-
-header .right { margin-top: 5px;}
-header #search { float: left; font-weight: 100; margin: 0; padding: 0; width: 210px; margin-right: 10px;}
-header #search input[type=search] { width: 150px; font-size: 10px; font-weight: 100; margin: 0; padding: 0; }
-header #search input[type=submit] {
-	font-size: 10px;
-	width: 58px; height: 20px; -moz-box-shadow: 0px 0px 5px #999;-webkit-box-shadow: 0px 0px 5px #999; margin-top: 2px;
-	border: 1px solid #AAA;
-	background: #DDDDDD;
-	background: -moz-linear-gradient(top, #DDDDDD 0%, #EEEEEE 100%); /* firefox */
-	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#DDDDDD), color-stop(100%,#EEEEEE)); /* webkit */
-	border-radius: 18px;
-	cursor: pointer;
-}
-#login { display:none; float:right; position: absolute; top:30px; right: 0; width: 100%; height:200px; }
-#login div div { width: 300px; float:right; background: #FFF; -moz-box-shadow: 0px 8px 8px #999;-webkit-box-shadow: 0px 8px 8px #999; margin-top: 2px; padding: 10px;}
-/* tutorial */
-
-input, textarea { 
-	padding: 9px;
-	border: solid 1px #E5E5E5;
-	outline: 0;
-	font: normal 13px/100% Verdana, Tahoma, sans-serif;
-	background: #FFFFFF url('bg_form.png') left top repeat-x;
-	background: -webkit-gradient(linear, left top, left 25, from(#FFFFFF), color-stop(4%, #EEEEEE), to(#FFFFFF));
-	background: -moz-linear-gradient(top, #FFFFFF, #EEEEEE 1px, #FFFFFF 25px);
-	box-shadow: rgba(0,0,0, 0.1) 0px 0px 8px;
-	-moz-box-shadow: rgba(0,0,0, 0.1) 0px 0px 8px;
-	-webkit-box-shadow: rgba(0,0,0, 0.1) 0px 0px 8px;
-	}
-
-textarea { 
-	width: 400px;
-	max-width: 400px;
-	height: 150px;
-	line-height: 150%;
-	}
-
-input:hover, textarea:hover,
-input:focus, textarea:focus { 
-	border-color: #C9C9C9; 
-	-webkit-box-shadow: rgba(0, 0, 0, 0.15) 0px 0px 8px;
-	}
-
-.form label { 
-	margin-left: 10px; 
-	color: #999999; 
-	}
-
-	body, div, h1, form, fieldset, input, textarea {
-		margin: 0; padding: 0; border: 0; outline: none;
-	}
-
-
-
-	html {
-		height: 100%;
-	}
-
-	#contact {
-		width: 430px; margin: 60px auto; padding: 60px 30px;
-		background: #c9d0de; border: 1px solid #e1e1e1;
-		-moz-box-shadow: 0px 0px 8px #444;
-		-webkit-box-shadow: 0px 0px 8px #444;
-	}
-
-	h1 {
-		font-size: 35px; color: #445668; text-transform: uppercase;
-		text-align: center; margin: 0 0 35px 0; text-shadow: 0px 1px 0px #f2f2f2;
-	}
-
-	label {
-		/*float: left; clear: left; margin: 11px 20px 0 0; width: 95px;
-		text-align: right; font-size: 16px; color: #445668; 
-		text-transform: uppercase; text-shadow: 0px 1px 0px #f2f2f2;
-		*/
-	}
-
-	input[type=text], input[type=password],input[type=email] {
-		width: 260px; height: 35px; padding: 5px 20px 0px 20px; margin: 0 0 20px 0; 
-		background: #5E768D;
-		background: -moz-linear-gradient(top, #BBBBBB 0%, #EEEEEE 20%); /* firefox */
-		background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#BBBBBB), color-stop(20%,#EEEEEE)); /* webkit */
-		border-radius: 5px; -moz-border-radius: 5px; -webkit-border-radius: 5px;
-		-moz-box-shadow: 0px 1px 0px #f2f2f2;-webkit-box-shadow: 0px 1px 0px #f2f2f2;
-		font-size: 16px; color: #333; text-shadow: 0px -1px 0px #000; font-weight: 200;
-	}
-		input::-webkit-input-placeholder  {
-	    	color: #a1b2c3; text-shadow: 0px -1px 0px #38506b;  
-		}
-		input:-moz-placeholder {
-		    color: #a1b2c3; text-shadow: 0px -1px 0px #38506b; 
-		}
-
-	textarea {
-		width: 260px; height: 170px; padding: 12px 20px 0px 20px; margin: 0 0 20px 0; 
-		background: #5E768D;
-		background: -moz-linear-gradient(top, #546A7F 0%, #5E768D 20%); /* firefox */
-		background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#546A7F), color-stop(20%,#5E768D)); /* webkit */
-		border-radius: 5px; -moz-border-radius: 5px; -webkit-border-radius: 5px;
-		-moz-box-shadow: 0px 1px 0px #f2f2f2;-webkit-box-shadow: 0px 1px 0px #f2f2f2;
-		font-size: 16px; color: #f2f2f2; text-transform: uppercase; text-shadow: 0px -1px 0px #334f71; 
-	}
-		textarea::-webkit-input-placeholder  {
-	    	color: #a1b2c3; text-shadow: 0px -1px 0px #38506b;  
-		}
-		textarea:-moz-placeholder {
-		    color: #a1b2c3; text-shadow: 0px -1px 0px #38506b; 
-		}
-
-	input:focus, textarea:focus {
-		background: #AAAAAA;
-		background: -moz-linear-gradient(top, #DDDDDD 0%, #FEFEFE 20%); /* firefox */
-		background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#DDDDDD), color-stop(20%,#FEFEFE)); /* webkit */
-		-moz-box-shadow: 0px 1px 4px #AAA;-webkit-box-shadow: 0px 1px 4px #AAA;
-	}
-
-	input[type=submit] {
-		float: right; margin: 0 0 0 0; padding: 5px 7px;
-		-moz-box-shadow: 0px 0px 5px #999;-webkit-box-shadow: 0px 0px 5px #999;
-		border: 1px solid #556f8c;
-		background: -moz-linear-gradient(top, #718DA9 0%, #415D79 100%); /* firefox */
-		background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#718DA9), color-stop(100%,#415D79)); /* webkit */
-		cursor: pointer;
-	}
-
-
-
-/*
-    \\ ========================================== //
-*/
+body, select, input, textarea {  color: #2B0A19; }
+a { color: #5A6B7B; }
+a, a:active, a:visited { color: #5A6B7B; }
+a:hover { color: #5A6B7B; }
+header a { color: #5A6B7B; }
+header a, header a:active, header a:visited { color: #000; }
+header a:hover { color: #5A6B7B; }
 
 .ir { display: block; text-indent: -999em; overflow: hidden; background-repeat: no-repeat; text-align: left; direction: ltr; }
 .hidden { display: none; visibility: hidden; }
@@ -257,18 +90,100 @@ input:focus, textarea:focus {
 .clearfix:after { clear: both; }
 .clearfix { zoom: 1; }
 
+/* */
 
-@media all and (orientation:portrait) {
+.center { margin: 0 auto; width: 960px; clear: both;}
+.left { float: left; }
+.right { float: right; }
 
+header .right { margin-top: 5px; }
+
+header #search { float: left; margin: 0; padding: 0; width: 175px; margin-right: 10px;}
+header #search input[type=search] { width: 150px; font-size: 10px; margin: 0; padding: 0; float: left; margin-top: 4px;}
+header #search input[type=submit] {
+	float: left;
+	font-size: 8px;
+	border: none;
+	-moz-box-shadow: 0px 0px 5px #000;-webkit-box-shadow: 0px 0px 5px #000; margin-top: 2px;
+	background: #2B0A19;
+	color: #5A6B7B;
+	border-radius: 10px;
+	cursor: pointer;
+	padding-top: 3px;
+	padding-left: 5px;
+	margin-top: 4px;
+	margin-left: 3px;
+	width: 16px; height: 16px;
+	text-align: center;
+}
+header #search input[type=submit]:hover { background: #5A6B7B; color: #2B0A19; }
+#register-btn
+,#login-btn { height: 24px; display:block; float: right; margin: 0; margin-top: -6px; padding: 10px 11px 4px 11px;}
+#register-btn:hover, #login-btn:hover { background: #FFF; }
+#register, #login { display:none; float:right; position: absolute; top:35px; right: 0; width: 100%; height:200px; }
+#register div div, #login div div { width: 285px; float:right; background: #FFF; -moz-box-shadow: 0px 8px 8px #000;-webkit-box-shadow: 0px 8px 8px #000; margin-top: 2px; padding: 10px;}
+
+#logo { margin: 3px; }
+#homescreen { margin-top: 15px;}
+
+h1 { font-family: 'Cabin Sketch', sans-serif; }
+h1 { font-size: 35px; }
+h2 { font-size: 16px; }
+h3 { font-size: 14px; }
+
+h1 a, h2 a, h3 a, header a { text-decoration: none; }
+header a:hover { color: #2B0A19; }
+
+#content { padding-top: 15px; min-height: 400px;}
+#about { width: 300px; padding-right: 30px;}
+#featured { width: 300px; }
+#featured li { margin-bottom: 10px; }
+
+#list .left { width: 660px; }
+#list .right { padding-left: 10px; width: 290px; }
+#list li { padding-bottom: 10px; }
+
+header { height: 37px; background:#5A6B7B; color: #DEFFEE; font-size: 1em; }
+#main { min-height: 500px; background:#DEFFEE; color: #2B0A19; font-size: 1em; }
+#main #banner { height: 90px; background:#2B0A19; color: #B0F3F7; font-size: 1em; border-bottom: 3px #7AA6A9 solid; padding-top: 10px; }
+#main #home-banner { height: 210px; background:#2B0A19; color: #B0F3F7; font-size: 1em; border-bottom: 3px #7AA6A9 solid; padding-top: 10px; }
+#main #home-banner h1 { font-size: 65px; }
+footer { min-height: 300px; background:#5A6B7B; color: #2B0A19; font-size: 1em; }
+
+/* forms */
+input, textarea { 
+	padding: 9px; border: solid 1px #E5E5E5; outline: 0; margin-bottom: 10px; 
+	background: -webkit-gradient(linear, left top, left 25, from(#FFFFFF), color-stop(4%, #EEEEEE), to(#FFFFFF)); background: -moz-linear-gradient(top, #FFFFFF, #EEEEEE 1px, #FFFFFF 25px);
+	box-shadow: rgba(0,0,0, 0.1) 0px 0px 8px; -moz-box-shadow: rgba(0,0,0, 0.1) 0px 0px 8px; -webkit-box-shadow: rgba(0,0,0, 0.1) 0px 0px 8px;
+}
+textarea { width: 400px; max-width: 400px; height: 150px; line-height: 150%; }
+input:hover, textarea:hover, input:focus, textarea:focus { border-color: #C9C9C9; -webkit-box-shadow: rgba(0, 0, 0, 0.15) 0px 0px 8px; }
+form label { margin-left: 10px; color: #999999; }
+input[type=text], input[type=password],input[type=email] { width: 260px; }
+input[type=submit] {
+	float: right; margin: 0 0 0 0; padding: 5px 7px;
+	-moz-box-shadow: 0px 0px 5px #999;-webkit-box-shadow: 0px 0px 5px #999;
+	border: 1px solid #556f8c;
+	border-radius: 5px; -moz-border-radius: 5px; -webkit-border-radius: 5px;
+	background: -moz-linear-gradient(top, #718DA9 0%, #415D79 100%); 
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#718DA9), color-stop(100%,#415D79)); 
+	cursor: pointer;
 }
 
-@media all and (orientation:landscape) {
 
+/* rules that only apply for canvases narrower than 1000px */
+@media only screen and (max-width: 999px) {
+  
 }
 
-@media screen and (max-device-width: 480px) {
+/* rules for iPad in landscape orientation */
+@media only screen and (orientation: landscape) and (min-device-width: 768px) { 
+  
+}
 
-  /* html { -webkit-text-size-adjust:none; -ms-text-size-adjust:none; } */
+/* iPhone, Android rules here */
+@media only screen and (min-device-width: 320px) and (max-device-width: 480px) {
+  
 }
 
 

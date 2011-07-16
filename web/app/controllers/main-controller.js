@@ -1,3 +1,6 @@
+var parseURL = require('url').parse;
+var crypto = require('crypto');
+
 exports.setup = function(router){
 	
 	router.get('/', function(req, res) {
@@ -8,8 +11,9 @@ exports.setup = function(router){
 		});
 	})
 
-	.get('/search/*', function(req, res, query) {
-		res.render('search/index', {title:'Search'});
+	.get('/search', function(req, res) {
+		var query = parseURL(req.url,true).query.q;
+		res.render('home/search', {title:'Search', query:query});
 	})
 
 	.get('/logout', function(req, res, query) {
@@ -19,16 +23,39 @@ exports.setup = function(router){
 
 	.post('/login', function(req, res, query) {
 		authenticate(req,function(err,user){
-			if(err) res.render('error', {title:locals.title,error:err});
+			if(err) res.render('error', {title:'',error:err});
 			else if(req.session.data.history.length>1) // redirect to the page you went to before logging in
 				res.redirect(req.session.data.history[req.session.data.history.length-1]);
 			else res.redirect('/');
 		});
-	})	
+	})
 	
+	.get('/forgot_password', function(req, res, query) {
+		res.render('home/forgot', {title:'Forgot Password', query:query});
+	})
+	
+	.post('/forgot_password', function(req, res, query) {
+		req.getParams(function(params){
+			resetPassword(params,function(err){
+				if(err) res.render('error', {title:'', error:err});
+				else res.render('templates/thanks', {title:'Thanks',message:'An email will be sent to you with your new password, make sure to update your password in account settings.'});
+			});
+		});
+	})
+	
+	
+	.post('/register', function(req, res) {
+		req.getParams(function(params){
+			createUser(params,function(err){
+				if(err) res.render('error', {title:'', error:err});
+				else res.render('templates/thanks', {title:'Thanks',message:'An email will be sent to you soon to confirm your registration.'});
+			});
+		});
+	})
 }
 
 // temporary data methods until I get a db hookup
+
 function getFeatured(callback) {
 	callback(null,{featured:[
 		{createdAt:new Date(), subject:'Example Mailing List',body:
@@ -37,6 +64,19 @@ function getFeatured(callback) {
 			'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor'}
 		]});
 }
+
+function createUser(params,callback) {
+	// params: email, password, name(optional list name)
+	callback(null,{user:{}});
+}
+
+function resetPassword(params, callback) {
+	// params:	email
+	// return error if email is not found
+	callback(null);
+}
+
+
 
 function createHash(data,salt) {
 	if( typeof(salt) != 'undefined'){
