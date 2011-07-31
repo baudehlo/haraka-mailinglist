@@ -1,40 +1,10 @@
 
 
-var sqlite = require('sqlite');
-var outbound = require('./outbound');
-var utils = require('./utils');
-
-var db = new sqlite.Database();
-
-// CREATE TABLE User (
-//   id INTEGER PRIMARY KEY,
-//   email TEXT NOT NULL,
-//   confirmed INTEGER NOT NULL DEFAULT 0,
-//   name TEXT,
-//   passwd_hash TEXT,
-//   key TEXT,
-//   bounce_count INTEGER NOT NULL DEFAULT 0
-//   );
-// CREATE UNIQUE INDEX User_email ON User (email);
-
-// CREATE TABLE List (
-//   id INTEGER PRIMARY KEY,
-//   email TEXT NOT NULL,
-//   name TEXT
-//   );
-// CREATE UNIQUE INDEX List_email ON List (email);
-
-// CREATE TABLE ListMember (
-//   list_id INTEGER NOT NULL REFERENCES List,
-//   user_id INTEGER NOT NULL REFERENCES User
-//   );
-// CREATE UNIQUE INDEX ListMember_uniq ON ListMember (list_id, user_id);
-
-// CREATE TABLE ListAdmin (
-//   list_id INTEGER NOT NULL REFERENCES List,
-//   user_id INTEGER NOT NULL REFERENCES User
-//   );
-// CREATE UNIQUE INDEX ListAdmin_uniq ON ListAdmin (list_id, user_id);
+var outbound    = require('./outbound');
+var utils       = require('./utils');
+var lists       = require('/opt/groupalist/list');
+var users       = require('/opt/groupalist/user');
+var db          = require('/opt/groupalist/db');
 
 var commands = [
     'sub',
@@ -48,11 +18,7 @@ var commands = [
 var list_re = new RegExp('^(\\w+)(?:-(' + commands.join('|') + ')(?:-(\\w+))?)?$');
 
 exports.register = function () {
-    db.open('mailinglist.db', function (err) {
-        if (err) {
-            throw err;
-        }
-    });
+    db.init();
 }
 
 exports.hook_queue = function (next, conn) {
@@ -95,97 +61,80 @@ exports.lookup_recipient = function (next, conn, recip) {
 
     this.logdebug("Looking up <" + listname + "> with command: " + command);
 
-    var domain = recip.host;
     var plugin = this;
-    db.execute("SELECT id, email, name FROM List WHERE email = ?", [listname + '@' + domain],
-        function (err, rows) {
-            if (err) {
-                plugin.logerror("DB Error: " + err);
-                // nothing we can do here but re-add the email and hope it gets
-                // delivered somewhere?
-                return next(recip);
-            }
-            if (rows.length) {
-                // can only be one due to index
-                plugin.loginfo("Found the list: " + rows[0].email);
-                plugin.found_list(next, conn, recip, listname, command, key, rows[0].id, rows[0].email, rows[0].name);
-            }
-            else {
-                // we didn't find the list, so just re-add the recipient and carry on.
-                plugin.loginfo("Not a list we know about");
-                return next(recip);
-            }
+    lists.find_list(listname + '@' + recip.host, function (listinfo) {
+        if (list) {
+            plugin.loginfo("Found the list: " + listinfo.email);
+            plugin.found_list(next, conn, recip, listname, command, key, listinfo);
         }
-    );
+        else {
+            // we didn't find the list, so just re-add the recipient and carry on.
+            return next(recip);
+        }
+    });
 }
 
-exports.found_list = function (next, conn, recip, listname, command, key, list_id, list_email, list_name) {
+exports.found_list = function (next, conn, recip, command, key, listinfo) {
     var plugin = this;
     if (command) {
         switch(command) {
             case 'subscribe':
             case 'sub':
                 return process.nextTick(function () {
-                    plugin.list_subscribe(next, conn, recip, key, list_id, list_email, list_name)
+                    plugin.list_subscribe(next, conn, recip, key, listinfo)
                 });
             case 'unsubscribe':
             case 'unsub':
                 return process.nextTick(function () {
-                    plugin.list_unsub(next, conn, recip, list_id, list_email, list_name)
+                    plugin.list_unsub(next, conn, recip, listinfo)
                 });
             case 'bouncev':
                 return process.nextTick(function () {
-                    plugin.list_bouncev(next, conn, recip, key, list_id, list_email, list_name)
+                    plugin.list_bouncev(next, conn, recip, key, listinfo)
                 })
             case 'bounce':
                 return process.nextTick(function () {
-                    plugin.list_bounce(next, conn, recip, key, list_id, list_email, list_name)
+                    plugin.list_bounce(next, conn, recip, key, listinfo)
                 });
             default:
-                plugin.logerror("No such list command: " + command + " for list: " + list_email);
+                plugin.logerror("No such list command: " + command + " for list: " + listinfo.email);
                 return next(recip)
         }
     }
-    this.send_list_mail(next, conn, recip, listname, list_id, list_email, list_name);
-}
-
-exports.should_moderate = function (mail_from, list_id, cb) {
-    // TODO: implement
-    cb(false);
+    this.send_list_mail(next, conn, listinfo);
 }
 
 // check should the post be moderated - then send to moderation queue
 // if not, send to everyone. But munge Reply-To if required.
-exports.send_list_mail = function (next, conn, recip, listname, list_id, list_email, list_name) {
+exports.send_list_mail = function (next, conn, listinfo) {
     var plugin = this;
-    this.should_moderate(conn.transaction.mail_from, list_id, function (modflag) {
+    lists.should_moderate(conn.transaction.mail_from, listinfo, function (modflag) {
         if (modflag) {
-            return plugin.send_to_moderation_queue(next, conn, recip, listname, list_id, list_email, list_name);
+            return plugin.send_to_moderation_queue(next, conn, listinfo);
         }
         // otherwise send normally
-        db.execute("SELECT email, name FROM User, ListMember WHERE user_id = User.id AND list_id = ?",
-                    [list_id],
-        function (err, rows) {
-            if (err) {
-                plugin.logerror("Error getting list users: " + err);
+        lists.get_members(listinfo, function (users) {
+            if (!users) {
                 return next();
             }
+
             // Fixup the email (TODO: we should probably clone the transaction here because we don't want it changed for every RCPT TO)
             conn.transaction.remove_header('List-Unsubscribe');
             conn.transaction.add_header('List-Unsubscribe', list_email.replace('@', '-unsub@'));
             conn.transaction.remove_header('List-ID');
             conn.transaction.add_header('List-ID', list_name + " <" + list_email.replace('@', '.') + ">");
+
             // TODO: Add other headers here too.
 
             var contents = conn.transaction.data_lines.join("");
 
-            var num_to_send = rows.length;
+            var num_to_send = users.length;
             // for each user
-            for (var i=0,l=rows.length; i<l; i++) {
-                var to = rows[i].email;
+            for (var i=0,l=users.length; i<l; i++) {
+                var to = users[i].email;
                 var verp = verp_email(to);
 
-                var from = list_email.replace('@', '-bouncev-' + verp + '@');
+                var from = listinfo.email.replace('@', '-bouncev-' + verp + '@');
                 
                 var outnext = function (code, msg) {
                     num_to_send--;
@@ -193,39 +142,37 @@ exports.send_list_mail = function (next, conn, recip, listname, list_id, list_em
                         next();
                     }
                 };
-
+                
                 outbound.send_email(from, to, contents, outnext);
             }
         });
     });
 }
 
+exports.send_to_moderation_queue = function (next, conn, listinfo) {
+    // TODO
+}
+
 // bounce for initial subscribe messages
-exports.list_bounce = function (next, conn, recip, key, list_id, list_email, list_name) {
+exports.list_bounce = function (next, conn, key, listinfo) {
     var plugin = this;
-    db.execute("SELECT id, confirmed, bounce_count FROM User WHERE key = ?", [key], function(err, rows) {
-        if (err) {
-            plugin.logerror("Error getting user: " + err);
+    users.get_user_by_key(key, function (user) {
+        if (!user) {
             return next();
         }
-        if (rows.length) {
-            plugin.process_bounce(next, conn, rows[0], list_id, list_email, list_name)
-        }
+        plugin.process_bounce(next, conn, user, listinfo);
     })
 }
 
 // bounce for normal verp messages
-exports.list_bouncev = function (next, conn, recip, key, list_id, list_email, list_name) {
+exports.list_bouncev = function (next, conn, key, listinfo) {
     var plugin = this;
     var email = unverp_email(key);
-    db.execute("SELECT id, confirmed, bounce_count FROM User WHERE email = ?", [email], function (err, rows) {
-        if (err) {
-            plugin.logerror("Error getting user: " + err);
+    users.get_user_by_email(email, function (user) {
+        if (!user) {
             return next();
         }
-        if (rows.length) {
-            plugin.process_bounce(next, conn, rows[0], list_id, list_email, list_name)
-        }
+        plugin.process_bounce(next, conn, user, listinfo);
     })
 }
 
@@ -237,112 +184,85 @@ var MAX_BOUNCES = 5;
 // increment bounce_count
 // if bounce_count == list.max_bounces, send warning, stop.
 // if bounce_count > list.max_bounces, delete user, stop.
-exports.process_bounce = function (next, conn, user, list_id, list_email, list_name) {
+exports.process_bounce = function (next, conn, user, listinfo) {
     var plugin = this;
     if (!user.confirmed) {
-        return plugin.delete_user(user.id, next);
+        return users.delete_user(user.id, next);
     }
     // TODO: should really  do this in the DB to ensure consistency
     bounce_count = bounce_count + 1;
 
     // TODO: make per-list?
     if (bounce_count === MAX_BOUNCES) {
-        return plugin.send_bounce_warning(next, conn, user, list_id, list_email, list_name)
+        return plugin.send_bounce_warning(next, conn, user, listinfo)
     }
 
     if (bounce_count > MAX_BOUNCES) {
-        return plugin.delete_user(user.id, next);
+        return users.delete_user(user.id, next);
     }
 }
 
-exports.list_subscribe = function (next, conn, recip, key, list_id, list_email, list_name) {
+exports.list_subscribe = function (next, conn, recip, key, listinfo) {
     var plugin = this;
     if (key) {
-        return plugin.list_subscribe_confirm(next, conn, recip, key, list_id, list_email, list_name);
+        return plugin.list_subscribe_confirm(next, conn, recip, key, listinfo);
     }
     plugin.logdebug("Looking up User with email: " + conn.transaction.mail_from.address());
-    db.execute("SELECT id, confirmed FROM User WHERE email = ?", [conn.transaction.mail_from.address()],
-        function (err, rows) {
-            if (err) {
-                plugin.logerror("DB Error: " + err);
-                // another option here is mail the list admin?
-                return next(recip);
+    users.get_user_by_email(conn.transaction.mail_from.address(), function (user) {
+        if (user) {
+            if (user.confirmed) {
+                return plugin.list_subscribe_add_user(next, user, conn, recip, listinfo);
             }
-            if (rows.length) {
-                if (rows[0].confirmed) {
-                    return process.nextTick(function () {
-                        plugin.list_subscribe_add_user(next, rows[0].id, conn, recip, list_id, list_email, list_name);
-                    });
-                }
-                return process.nextTick(function () {
-                    plugin.list_subscribe_send_confirm(next, rows[0].id, conn, recip, list_id, list_email, list_name)
-                });
-            }
-            else {
-                return process.nextTick(function () {
-                    plugin.list_subscribe_new_user(next, conn, recip, list_id, list_email, list_name);
-                });
-            }
+            // else
+            return plugin.list_subscribe_send_confirm(next, user, conn, recip, listinfo);
         }
-    )
+        else {
+            return plugin.list_subscribe_new_user(next, conn, recip, listinfo);
+        }
+    })
 }
 
-exports.list_subscribe_confirm = function (next, conn, recip, key, list_id, list_email, list_name) {
+exports.list_subscribe_confirm = function (next, conn, recip, key, listinfo) {
     var plugin = this;
-    var found = false;
     plugin.loginfo("Confirming " + conn.transaction.mail_from.address() + " with key: " + key);
-    db.execute("SELECT id FROM User WHERE key = ?", [key], function (err, rows) {
-        if (err) {
-            plugin.logerror("DB Error fetching confirmation key: " + err);
+
+    users.get_user_by_key(key, function (user) {
+        if (!user) {
             return next();
         }
-        if (!rows.length) {
-            // no such key, but just drop the mail.
-            plugin.loginfo("No such key in DB, dropping this mail");
-            return next();
-        }
-        var user_id = rows[0].id;
-        plugin.loginfo("Got user with id: " + user_id);
-        db.execute("UPDATE User SET confirmed = 1, key = NULL WHERE id = ?", [user_id], function (err) {
-            if (err) {
-                plugin.logerror("DB Error updating user: " + err);
+        plugin.loginfo("Got user with id: " + user.id);
+        users.confirm_user(user, function (ok) {
+            if (!ok) {
                 return next();
             }
-            return plugin.list_subscribe_add_user(next, user_id, conn, recip, list_id, list_email, list_name);
+            return plugin.list_subscribe_add_user(next, user, conn, recip, listinfo);
         })
     })
 }
 
-exports.list_subscribe_add_user = function (next, user_id, conn, recip, list_id, list_email, list_name) {
+exports.list_subscribe_add_user = function (next, user, conn, recip, listinfo) {
     var plugin = this;
 
-    plugin.loginfo("Adding user: " + user_id + " to list");
-    db.execute("INSERT INTO ListMember (list_id, user_id) VALUES (?, ?)", [list_id, user_id], function (err) {
-        if (err) {
-            // Could be that they are already a member of the list...
-            if (!(/constraint failed/.test(err))) {
-                plugin.logerror("DB Error inserting ListMember: " + err);
-                return next();
-            }
+    plugin.loginfo("Adding user: " + user.id + " to list");
+    lists.add_member(listinfo.id, user.id, function (ok) {
+        if (!ok) {
+            return next();
         }
-        plugin.send_welcome_email(next, conn, recip, list_id, list_email, list_name);
+        plugin.send_welcome_email(next, conn, recip, user, listinfo);
     })
-
 }
 
 // add email to User table, with confirmed = false
-exports.list_subscribe_new_user = function (next, conn, recip, list_id, list_email, list_name) {
+exports.list_subscribe_new_user = function (next, conn, recip, listinfo) {
     var plugin = this;
     plugin.loginfo("New user: " + conn.transaction.mail_from.address());
-    db.execute("INSERT INTO User (email) VALUES (?)", [conn.transaction.mail_from.address()],
-    function (err) {
-        if (err) {
-            plugin.logerror("DB Error: " + err);
-            return next(recip);
+
+    users.create_user(email, function (user) {
+        if (!user) {
+            return next();
         }
-        // go back to list_subscribe, where we get the User.id and send confirmation email
-        return plugin.list_subscribe(next, conn, recip, null, list_id, list_email, list_name);
-    })
+        return plugin.list_subscribe_send_confirm(next, user, conn, recip, listinfo);
+    });
 }
 
 // Send a confirmation email to sign up to a list
@@ -350,29 +270,30 @@ exports.list_subscribe_new_user = function (next, conn, recip, list_id, list_ema
 // - store in db
 // - send mail with Reply-To: list-subscribe-$key@domain
 // - mail mail_from = list-bounce-<verpuser>@domain
-exports.list_subscribe_send_confirm = function (next, user_id, conn, recip, list_id, list_email, list_name) {
+exports.list_subscribe_send_confirm = function (next, user, conn, recip, listinfo) {
     var plugin = this;
 
     var key = utils.uuid().replace(/-/g, '');
-    db.execute("UPDATE User SET key = ? WHERE id = ?", [key, user_id], function (err) {
-        if (err) {
-            plugin.logerror("Failed to set user key: " + err);
+
+    users.set_key(user, key, function (ok) {
+        if (!ok) {
             return next();
         }
 
         var to = conn.transaction.mail_from;
-        var from = list_email.replace('@', '-bounce-' + key + '@');
+        var from = listinfo.email.replace('@', '-bounce-' + key + '@');
 
+        // TODO: Get the contents of this from the DB for each list
         var contents = [
-            "From: " + list_email.replace('@', '-help@'),
+            "From: " + listinfo.email.replace('@', '-help@'),
             "To: " + to,
             "MIME-Version: 1.0",
-            "Content-type: text/plain; charset=us-ascii",
-            "Reply-To: " + list_email.replace('@', '-sub-' + key + '@'),
-            "Subject: Confirm your Subscription to " + list_email,
+            "Content-type: text/plain; charset=UTF-8",
+            "Reply-To: " + listinfo.email.replace('@', '-sub-' + key + '@'),
+            "Subject: Confirm your Subscription to " + listinfo.email,
             "",
             "To confirm that you would like '" + to + "'",
-            "added to the " + list_email + " mailing list,",
+            "added to the " + listinfo.email + " mailing list,",
             "please send an empty reply to this email.",
             "",
             "If that does not work, click here (link to web server)",
@@ -402,23 +323,23 @@ function unverp_email (verp) {
     return verp.replace(/=/, '@');
 }
 
-exports.send_welcome_email = function (next, conn, recip, list_id, list_email, list_name) {
+exports.send_welcome_email = function (next, conn, recip, user, listinfo) {
     var plugin = this;
 
     var to = conn.transaction.mail_from;
 
     var verp = verp_email(to.address());
 
-    var from = list_email.replace('@', '-bouncev-' + verp + '@');
+    var from = listinfo.email.replace('@', '-bouncev-' + verp + '@');
 
     var contents = [
-        "From: " + list_email.replace('@', '-help@'),
+        "From: " + listinfo.email.replace('@', '-help@'),
         "To: " + to,
         "MIME-Version: 1.0",
         "Content-type: text/plain; charset=us-ascii",
-        "Subject: Welcome to " + list_email,
+        "Subject: Welcome to " + listinfo.email,
         "",
-        "Welcome '" + to + "' to the " + list_email,
+        "Welcome '" + to + "' to the " + listinfo.email,
         "mailing list.",
         ""].join("\n");
     
@@ -436,6 +357,6 @@ exports.send_welcome_email = function (next, conn, recip, list_id, list_email, l
     outbound.send_email(from, to, contents, outnext);
 }
 
-
-exports.list_unsub = function (next, conn, recip, list_id, list_email, list_name) {
+// TODO
+exports.list_unsub = function (next, conn, recip, listinfo) {
 }
