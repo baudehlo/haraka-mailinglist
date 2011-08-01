@@ -360,4 +360,54 @@ exports.send_welcome_email = function (next, trans, recip, user, list) {
 
 // TODO
 exports.list_unsub = function (next, trans, recip, list) {
+    var plugin = this;
+    users.get_user_by_email(trans.mail_from.address(), function (user) {
+        if (!user) {
+            return next();
+        }
+
+        lists.remove_member(list.id, user.id, function (ok) {
+            if (!ok) {
+                // DB remove failed... TODO: do something?
+                return next();
+            }
+            plugin.send_goodbye_email(next, trans, recip, list);
+        }
+    })
+}
+
+exports.send_goodbye_email = function (next, trans, recip, list) {
+    var plugin = this;
+
+    var to = trans.mail_from;
+
+    var verp = verp_email(to.address());
+
+    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+
+    var contents = [
+        "From: " + list.email.replace('@', '-help@'),
+        "To: " + to,
+        "MIME-Version: 1.0",
+        "Content-type: text/plain; charset=us-ascii",
+        "Subject: You are unsubscribed from " + list.email,
+        "",
+        "Thank you for participating in " + list.email,
+        "",
+        "Should you wish to re-subscribe at any time, simply email:",
+        "  mailto:" + list.email.replace('@', '-subscribe@'),
+        ""].join("\n");
+    
+    var outnext = function (code, msg) {
+        switch (code) {
+            case DENY:  plugin.logerror("Sending goodbye mail failed: " + msg);
+                        break;
+            case OK:    plugin.loginfo("Goodbye mail sent");
+                        next();
+                        break;
+            default:    plugin.logerror("Unrecognised return code from sending email: " + msg);
+        }
+    };
+
+    outbound.send_email(from, to, contents, outnext);
 }
