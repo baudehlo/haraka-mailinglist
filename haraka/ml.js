@@ -18,17 +18,18 @@ var list_re = new RegExp('^(\\w+)(?:-(' + commands.join('|') + ')(?:-(\\w+))?)?$
 
 exports.hook_queue = function (next, conn) {
     // copy the recipients and replace with empty list for now
-    var rcpts = conn.transaction.rcpt_to;
-    conn.transaction.rcpt_to = [];
+    var trans = conn.transaction;
+    var rcpts = trans.rcpt_to;
+    trans.rcpt_to = [];
 
     var count = rcpts.length;
     var mynext = function (recip) {
         count--;
         if (recip) {
-            conn.transaction.rcpt_to.push(recip);
+            trans.rcpt_to.push(recip);
         }
         if (count === 0) {
-            if (conn.transaction.rcpt_to.length === 0) {
+            if (trans.rcpt_to.length === 0) {
                 // we dealt with all the recipients
                 next(OK, "Queued");
             }
@@ -41,11 +42,16 @@ exports.hook_queue = function (next, conn) {
 
     var list_rcpts = [];
     for (var i=0,l=rcpts.length; i < l; i++) {
-        this.lookup_recipient(mynext, conn, rcpts[i]);
+        this.lookup_recipient(mynext, trans, rcpts[i]);
     }
 }
 
-exports.lookup_recipient = function (next, conn, recip) {
+// Hook for a 5xx error on outbound
+exports.hook_bounce = function (next, hmail, err) {
+    // if (hmail.todo.mail_from is a list) { process bounce }
+}
+
+exports.lookup_recipient = function (next, trans, recip) {
     this.logdebug("Checking if " + recip + " is a mailing list");
     var matches = list_re.exec(recip.user);
     if (!matches) return next();
@@ -60,7 +66,7 @@ exports.lookup_recipient = function (next, conn, recip) {
     lists.find_list(listname + '@' + recip.host, function (list) {
         if (list) {
             plugin.loginfo("Found the list: " + list.email);
-            plugin.found_list(next, conn, recip, command, key, list);
+            plugin.found_list(next, trans, recip, command, key, list);
         }
         else {
             // we didn't find the list, so just re-add the recipient and carry on.
@@ -69,43 +75,43 @@ exports.lookup_recipient = function (next, conn, recip) {
     });
 }
 
-exports.found_list = function (next, conn, recip, command, key, list) {
+exports.found_list = function (next, trans, recip, command, key, list) {
     var plugin = this;
     if (command) {
         switch(command) {
             case 'subscribe':
             case 'sub':
                 return process.nextTick(function () {
-                    plugin.list_subscribe(next, conn, recip, key, list)
+                    plugin.list_subscribe(next, trans, recip, key, list)
                 });
             case 'unsubscribe':
             case 'unsub':
                 return process.nextTick(function () {
-                    plugin.list_unsub(next, conn, recip, list)
+                    plugin.list_unsub(next, trans, recip, list)
                 });
             case 'bouncev':
                 return process.nextTick(function () {
-                    plugin.list_bouncev(next, conn, recip, key, list)
+                    plugin.list_bouncev(next, trans, recip, key, list)
                 })
             case 'bounce':
                 return process.nextTick(function () {
-                    plugin.list_bounce(next, conn, recip, key, list)
+                    plugin.list_bounce(next, trans, recip, key, list)
                 });
             default:
                 plugin.logerror("No such list command: " + command + " for list: " + list.email);
                 return next(recip)
         }
     }
-    this.send_list_mail(next, conn, list);
+    this.send_list_mail(next, trans, list);
 }
 
 // check should the post be moderated - then send to moderation queue
 // if not, send to everyone. But munge Reply-To if required.
-exports.send_list_mail = function (next, conn, list) {
+exports.send_list_mail = function (next, trans, list) {
     var plugin = this;
-    lists.should_moderate(conn.transaction.mail_from, list, function (modflag) {
+    lists.should_moderate(trans.mail_from, list, function (modflag) {
         if (modflag) {
-            return plugin.send_to_moderation_queue(next, conn, list);
+            return plugin.send_to_moderation_queue(next, trans, list);
         }
         // otherwise send normally
         lists.get_members(list, function (users) {
@@ -114,14 +120,14 @@ exports.send_list_mail = function (next, conn, list) {
             }
 
             // Fixup the email (TODO: we should probably clone the transaction here because we don't want it changed for every RCPT TO)
-            conn.transaction.remove_header('List-Unsubscribe');
-            conn.transaction.add_header('List-Unsubscribe', list.email.replace('@', '-unsub@'));
-            conn.transaction.remove_header('List-ID');
-            conn.transaction.add_header('List-ID', list.name + " <" + list.email.replace('@', '.') + ">");
+            trans.remove_header('List-Unsubscribe');
+            trans.add_header('List-Unsubscribe', list.email.replace('@', '-unsub@'));
+            trans.remove_header('List-ID');
+            trans.add_header('List-ID', list.name + " <" + list.email.replace('@', '.') + ">");
 
             // TODO: Add other headers here too.
 
-            var contents = conn.transaction.data_lines.join("");
+            var contents = trans.data_lines.join("");
 
             var num_to_send = users.length;
             // for each user
@@ -144,30 +150,30 @@ exports.send_list_mail = function (next, conn, list) {
     });
 }
 
-exports.send_to_moderation_queue = function (next, conn, list) {
+exports.send_to_moderation_queue = function (next, trans, list) {
     // TODO
 }
 
 // bounce for initial subscribe messages
-exports.list_bounce = function (next, conn, key, list) {
+exports.list_bounce = function (next, trans, key, list) {
     var plugin = this;
     users.get_user_by_key(key, function (user) {
         if (!user) {
             return next();
         }
-        plugin.process_bounce(next, conn, user, list);
+        plugin.process_bounce(next, trans, user, list);
     })
 }
 
 // bounce for normal verp messages
-exports.list_bouncev = function (next, conn, key, list) {
+exports.list_bouncev = function (next, trans, key, list) {
     var plugin = this;
     var email = unverp_email(key);
     users.get_user_by_email(email, function (user) {
         if (!user) {
             return next();
         }
-        plugin.process_bounce(next, conn, user, list);
+        plugin.process_bounce(next, trans, user, list);
     })
 }
 
@@ -179,7 +185,7 @@ var MAX_BOUNCES = 5;
 // increment bounce_count
 // if bounce_count == list.max_bounces, send warning, stop.
 // if bounce_count > list.max_bounces, delete user, stop.
-exports.process_bounce = function (next, conn, user, list) {
+exports.process_bounce = function (next, trans, user, list) {
     var plugin = this;
     if (!user.confirmed) {
         return users.delete_user(user.id, next);
@@ -189,7 +195,7 @@ exports.process_bounce = function (next, conn, user, list) {
 
     // TODO: make per-list?
     if (bounce_count === MAX_BOUNCES) {
-        return plugin.send_bounce_warning(next, conn, user, list)
+        return plugin.send_bounce_warning(next, trans, user, list)
     }
 
     if (bounce_count > MAX_BOUNCES) {
@@ -197,29 +203,29 @@ exports.process_bounce = function (next, conn, user, list) {
     }
 }
 
-exports.list_subscribe = function (next, conn, recip, key, list) {
+exports.list_subscribe = function (next, trans, recip, key, list) {
     var plugin = this;
     if (key) {
-        return plugin.list_subscribe_confirm(next, conn, recip, key, list);
+        return plugin.list_subscribe_confirm(next, trans, recip, key, list);
     }
-    plugin.logdebug("Looking up User with email: " + conn.transaction.mail_from.address());
-    users.get_user_by_email(conn.transaction.mail_from.address(), function (user) {
+    plugin.logdebug("Looking up User with email: " + trans.mail_from.address());
+    users.get_user_by_email(trans.mail_from.address(), function (user) {
         if (user) {
             if (user.confirmed) {
-                return plugin.list_subscribe_add_user(next, user, conn, recip, list);
+                return plugin.list_subscribe_add_user(next, user, trans, recip, list);
             }
             // else
-            return plugin.list_subscribe_send_confirm(next, user, conn, recip, list);
+            return plugin.list_subscribe_send_confirm(next, user, trans, recip, list);
         }
         else {
-            return plugin.list_subscribe_new_user(next, conn, recip, list);
+            return plugin.list_subscribe_new_user(next, trans, recip, list);
         }
     })
 }
 
-exports.list_subscribe_confirm = function (next, conn, recip, key, list) {
+exports.list_subscribe_confirm = function (next, trans, recip, key, list) {
     var plugin = this;
-    plugin.loginfo("Confirming " + conn.transaction.mail_from.address() + " with key: " + key);
+    plugin.loginfo("Confirming " + trans.mail_from.address() + " with key: " + key);
 
     users.get_user_by_key(key, function (user) {
         if (!user) {
@@ -230,12 +236,12 @@ exports.list_subscribe_confirm = function (next, conn, recip, key, list) {
             if (!ok) {
                 return next();
             }
-            return plugin.list_subscribe_add_user(next, user, conn, recip, list);
+            return plugin.list_subscribe_add_user(next, user, trans, recip, list);
         })
     })
 }
 
-exports.list_subscribe_add_user = function (next, user, conn, recip, list) {
+exports.list_subscribe_add_user = function (next, user, trans, recip, list) {
     var plugin = this;
 
     plugin.loginfo("Adding user: " + user.id + " to list");
@@ -243,20 +249,20 @@ exports.list_subscribe_add_user = function (next, user, conn, recip, list) {
         if (!ok) {
             return next();
         }
-        plugin.send_welcome_email(next, conn, recip, user, list);
+        plugin.send_welcome_email(next, trans, recip, user, list);
     })
 }
 
 // add email to User table, with confirmed = false
-exports.list_subscribe_new_user = function (next, conn, recip, list) {
+exports.list_subscribe_new_user = function (next, trans, recip, list) {
     var plugin = this;
-    plugin.loginfo("New user: " + conn.transaction.mail_from.address());
+    plugin.loginfo("New user: " + trans.mail_from.address());
 
     users.create_user(email, function (user) {
         if (!user) {
             return next();
         }
-        return plugin.list_subscribe_send_confirm(next, user, conn, recip, list);
+        return plugin.list_subscribe_send_confirm(next, user, trans, recip, list);
     });
 }
 
@@ -265,7 +271,7 @@ exports.list_subscribe_new_user = function (next, conn, recip, list) {
 // - store in db
 // - send mail with Reply-To: list-subscribe-$key@domain
 // - mail mail_from = list-bounce-<verpuser>@domain
-exports.list_subscribe_send_confirm = function (next, user, conn, recip, list) {
+exports.list_subscribe_send_confirm = function (next, user, trans, recip, list) {
     var plugin = this;
 
     var key = utils.uuid().replace(/-/g, '');
@@ -275,7 +281,7 @@ exports.list_subscribe_send_confirm = function (next, user, conn, recip, list) {
             return next();
         }
 
-        var to = conn.transaction.mail_from;
+        var to = trans.mail_from;
         var from = list.email.replace('@', '-bounce-' + key + '@');
 
         // TODO: Get the contents of this from the DB for each list
@@ -318,10 +324,10 @@ function unverp_email (verp) {
     return verp.replace(/=/, '@');
 }
 
-exports.send_welcome_email = function (next, conn, recip, user, list) {
+exports.send_welcome_email = function (next, trans, recip, user, list) {
     var plugin = this;
 
-    var to = conn.transaction.mail_from;
+    var to = trans.mail_from;
 
     var verp = verp_email(to.address());
 
@@ -353,5 +359,5 @@ exports.send_welcome_email = function (next, conn, recip, user, list) {
 }
 
 // TODO
-exports.list_unsub = function (next, conn, recip, list) {
+exports.list_unsub = function (next, trans, recip, list) {
 }
