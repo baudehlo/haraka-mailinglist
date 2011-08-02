@@ -60,7 +60,7 @@ exports.lookup_recipient = function (next, trans, recip) {
     var command  = matches[2];
     var key      = matches[3];
 
-    this.logdebug("Looking up <" + listname + "> with command: " + command);
+    this.logdebug("Looking up <" + listname + "> with command: " + command + " from:" + trans.mail_from.address());
 
     var plugin = this;
     lists.find_list(listname + '@' + recip.host, function (list) {
@@ -105,49 +105,130 @@ exports.found_list = function (next, trans, recip, command, key, list) {
     this.send_list_mail(next, trans, list);
 }
 
+exports.bounce_non_member = function (next, trans, list) {
+    var plugin = this;
+
+    var to = trans.mail_from;
+
+    var verp = verp_email(to.address());
+
+    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+
+    var contents = [
+        "From: " + list.email.replace('@', '-help@'),
+        "To: " + to,
+        "MIME-Version: 1.0",
+        "Content-type: text/plain; charset=us-ascii",
+        "Subject: Emails to " + list.email + " are restricted",
+        "",
+        "Emails sent to " + list.email + " are restricted to members only.",
+        "",
+        "To subscribe, send an email to: mailto:" + list.email.replace('@', '-sub@'),
+        ""].join("\n");
+    
+    var outnext = function (code, msg) {
+        switch (code) {
+            case DENY:  plugin.logerror("Sending bounce mail failed: " + msg);
+                        break;
+            case OK:    plugin.loginfo("Bounce non-member mail sent");
+                        next();
+                        break;
+            default:    plugin.logerror("Unrecognised return code from sending email: " + msg);
+                        next();
+        }
+    };
+
+    outbound.send_email(from, to, contents, outnext);
+}
+
+exports.bounce_rejected = function (next, trans, list) {
+    var plugin = this;
+
+    var to = trans.mail_from;
+
+    var verp = verp_email(to.address());
+
+    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+
+    var contents = [
+        "From: " + list.email.replace('@', '-help@'),
+        "To: " + to,
+        "MIME-Version: 1.0",
+        "Content-type: text/plain; charset=us-ascii",
+        "Subject: Your message to " + list.email + " has been rejected",
+        "",
+        "Feel free to contact the list administrators at",
+        "mailto:" + list.email.replace('@', '-admins@') + " for further details.",
+        ""].join("\n");
+    
+    var outnext = function (code, msg) {
+        switch (code) {
+            case DENY:  plugin.logerror("Sending bounce mail failed: " + msg);
+                        break;
+            case OK:    plugin.loginfo("Bounce mail sent");
+                        next();
+                        break;
+            default:    plugin.logerror("Unrecognised return code from sending email: " + msg);
+                        next();
+        }
+    };
+
+    outbound.send_email(from, to, contents, outnext);
+}
+
 // check should the post be moderated - then send to moderation queue
 // if not, send to everyone. But munge Reply-To if required.
 exports.send_list_mail = function (next, trans, list) {
     var plugin = this;
-    lists.should_moderate(trans.mail_from, list, function (modflag) {
-        if (modflag) {
-            return plugin.send_to_moderation_queue(next, trans, list);
+    users.get_user_by_email(trans.mail_from.address(), function (user) {
+        if (!user) {
+            // No such user at all - TODO: list should allow non-member
+            // posts but moderate them...
+            return plugin.bounce_non_member(next, trans, list);
         }
-        // otherwise send normally
-        lists.get_members(list, function (users) {
-            if (!users) {
-                return next();
+        lists.should_moderate(user, list, function (reject, moderate) {
+            if (reject) {
+                return plugin.bounce_rejected(next, trans, list)
             }
-
-            // Fixup the email (TODO: we should probably clone the transaction here because we don't want it changed for every RCPT TO)
-            trans.remove_header('List-Unsubscribe');
-            trans.add_header('List-Unsubscribe', list.email.replace('@', '-unsub@'));
-            trans.remove_header('List-ID');
-            trans.add_header('List-ID', list.name + " <" + list.email.replace('@', '.') + ">");
-
-            // TODO: Add other headers here too.
-
-            var contents = trans.data_lines.join("");
-
-            var num_to_send = users.length;
-            // for each user
-            for (var i=0,l=users.length; i<l; i++) {
-                var to = users[i].email;
-                var verp = verp_email(to);
-
-                var from = list.email.replace('@', '-bouncev-' + verp + '@');
-                
-                var outnext = function (code, msg) {
-                    num_to_send--;
-                    if (num_to_send === 0) {
-                        next();
-                    }
-                };
-                
-                outbound.send_email(from, to, contents, outnext);
+            if (moderate) {
+                return plugin.send_to_moderation_queue(next, trans, list);
             }
+            // otherwise send normally
+            lists.get_members(list, function (users) {
+                if (!users) {
+                    return next();
+                }
+
+                // Fixup the email (TODO: we should probably clone the transaction here because we don't want it changed for every RCPT TO)
+                trans.remove_header('List-Unsubscribe');
+                trans.add_header('List-Unsubscribe', list.email.replace('@', '-unsub@'));
+                trans.remove_header('List-ID');
+                trans.add_header('List-ID', list.name + " <" + list.email.replace('@', '.') + ">");
+
+                // TODO: Add other headers here too.
+
+                var contents = trans.data_lines.join("");
+
+                var num_to_send = users.length;
+                // for each user
+                for (var i=0,l=users.length; i<l; i++) {
+                    var to = users[i].email;
+                    var verp = verp_email(to);
+
+                    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+                    
+                    var outnext = function (code, msg) {
+                        num_to_send--;
+                        if (num_to_send === 0) {
+                            next();
+                        }
+                    };
+                    
+                    outbound.send_email(from, to, contents, outnext);
+                }
+            });
         });
-    });
+    })
 }
 
 exports.send_to_moderation_queue = function (next, trans, list) {
@@ -308,6 +389,7 @@ exports.list_subscribe_send_confirm = function (next, user, trans, recip, list) 
                             next();
                             break;
                 default:    plugin.logerror("Unrecognised return code from sending email: " + msg);
+                            next();
             }
         };
 
@@ -352,6 +434,7 @@ exports.send_welcome_email = function (next, trans, recip, user, list) {
                         next();
                         break;
             default:    plugin.logerror("Unrecognised return code from sending email: " + msg);
+                        next();
         }
     };
 
@@ -372,7 +455,7 @@ exports.list_unsub = function (next, trans, recip, list) {
                 return next();
             }
             plugin.send_goodbye_email(next, trans, recip, list);
-        }
+        })
     })
 }
 
@@ -406,6 +489,7 @@ exports.send_goodbye_email = function (next, trans, recip, list) {
                         next();
                         break;
             default:    plugin.logerror("Unrecognised return code from sending email: " + msg);
+                        next();
         }
     };
 
