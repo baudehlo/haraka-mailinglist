@@ -14,7 +14,13 @@ var commands = [
     'bouncev',
 ];
 
-var list_re = new RegExp('^(\\w+)(?:-(' + commands.join('|') + ')(?:-(\\w+))?)?$');
+var list_re = new RegExp('^(\\w+)(?:-(' + commands.join('|') + ')(?:-([\\w\\-]+))?)?$');
+
+exports.hook_data = function (next, connection) {
+    // enable mail body parsing
+    connection.transaction.parse_body = true;
+    next();
+}
 
 exports.hook_queue = function (next, conn) {
     // copy the recipients and replace with empty list for now
@@ -196,36 +202,46 @@ exports.send_list_mail = function (next, trans, list) {
             // otherwise send normally
             lists.get_members(list, function (users) {
                 if (!users) {
+                    plugin.logerror("No users for list " + list.email);
                     return next();
                 }
 
-                // Fixup the email (TODO: we should probably clone the transaction here because we don't want it changed for every RCPT TO)
-                trans.remove_header('List-Unsubscribe');
-                trans.add_header('List-Unsubscribe', list.email.replace('@', '-unsub@'));
-                trans.remove_header('List-ID');
-                trans.add_header('List-ID', list.name + " <" + list.email.replace('@', '.') + ">");
+                lists.archive_email(list, trans, function (id) {
+                    if (!id) {
+                        plugin.logerror("Archiving failed");
+                        return next();
+                    }
 
-                // TODO: Add other headers here too.
+                    // Fixup the email (TODO: we should probably clone the transaction here because we don't want it changed for every RCPT TO)
+                    trans.remove_header('List-Unsubscribe');
+                    trans.add_header('List-Unsubscribe', list.email.replace('@', '-unsub@'));
+                    trans.remove_header('List-ID');
+                    trans.add_header('List-ID', list.name + " <" + list.email.replace('@', '.') + ">");
+                    trans.remove_header('List-Message-Id');
+                    trans.add_header('List-Message-Id', id);
 
-                var contents = trans.data_lines.join("");
+                    // TODO: Add other headers here too.
 
-                var num_to_send = users.length;
-                // for each user
-                for (var i=0,l=users.length; i<l; i++) {
-                    var to = users[i].email;
-                    var verp = verp_email(to);
+                    var contents = trans.data_lines.join("");
 
-                    var from = list.email.replace('@', '-bouncev-' + verp + '@');
-                    
-                    var outnext = function (code, msg) {
-                        num_to_send--;
-                        if (num_to_send === 0) {
-                            next();
-                        }
-                    };
-                    
-                    outbound.send_email(from, to, contents, outnext);
-                }
+                    var num_to_send = users.length;
+                    // for each user
+                    for (var i=0,l=users.length; i<l; i++) {
+                        var to = users[i].email;
+                        var verp = verp_email(to);
+
+                        var from = list.email.replace('@', '-bouncev-' + id + '-' + verp + '@');
+                        
+                        var outnext = function (code, msg) {
+                            num_to_send--;
+                            if (num_to_send === 0) {
+                                next();
+                            }
+                        };
+                        
+                        outbound.send_email(from, to, contents, outnext);
+                    }
+                })
             });
         });
     })
@@ -249,12 +265,21 @@ exports.list_bounce = function (next, trans, key, list) {
 // bounce for normal verp messages
 exports.list_bouncev = function (next, trans, key, list) {
     var plugin = this;
-    var email = unverp_email(key);
+    var matches = key.match(/^(\w+)-(.*)$/);
+    if (!matches) {
+        // email is in wrong format. Odd!
+        this.logerror("Email matching bouncev is in wrong format");
+        return next();
+    }
+
+    var msg_id = matches[1];
+    var email = unverp_email(matches[2]);
     users.get_user_by_email(email, function (user) {
         if (!user) {
+            plugin.logerror("Got bouncev from a non-user. Odd!");
             return next();
         }
-        plugin.process_bounce(next, trans, user, list);
+        plugin.process_bounce(next, trans, user, msg_id, list);
     })
 }
 
@@ -269,8 +294,11 @@ var MAX_BOUNCES = 5;
 exports.process_bounce = function (next, trans, user, list) {
     var plugin = this;
     if (!user.confirmed) {
+        plugin.loginfo("User was never even confirmed. Deleting him.");
         return users.delete_user(user.id, next);
     }
+
+    users.log_bounce()
     // TODO: should really  do this in the DB to ensure consistency
     bounce_count = bounce_count + 1;
 
@@ -339,7 +367,7 @@ exports.list_subscribe_new_user = function (next, trans, recip, list) {
     var plugin = this;
     plugin.loginfo("New user: " + trans.mail_from.address());
 
-    users.create_user(email, function (user) {
+    users.create_user(trans.mail_from.address(), function (user) {
         if (!user) {
             return next();
         }
