@@ -10,8 +10,9 @@ var commands = [
     'subscribe',
     'unsub',
     'unsubscribe',
-    'bounce',
-    'bouncev',
+    'bk',
+    'bv',
+    'bw',
 ];
 
 var list_re = new RegExp('^(\\w+)(?:-(' + commands.join('|') + ')(?:-([\\w\\-]+))?)?$');
@@ -85,24 +86,20 @@ exports.found_list = function (next, trans, recip, command, key, list) {
     var plugin = this;
     if (command) {
         switch(command) {
+            case 'help':
+                return plugin.list_help(next, trans, recip, list);
             case 'subscribe':
             case 'sub':
-                return process.nextTick(function () {
-                    plugin.list_subscribe(next, trans, recip, key, list)
-                });
+                return plugin.list_subscribe(next, trans, recip, key, list);
             case 'unsubscribe':
             case 'unsub':
-                return process.nextTick(function () {
-                    plugin.list_unsub(next, trans, recip, list)
-                });
-            case 'bouncev':
-                return process.nextTick(function () {
-                    plugin.list_bouncev(next, trans, recip, key, list)
-                })
-            case 'bounce':
-                return process.nextTick(function () {
-                    plugin.list_bounce(next, trans, recip, key, list)
-                });
+                return plugin.list_unsub(next, trans, recip, list);
+            case 'bk':
+                return plugin.list_bounce_key(next, trans, recip, key, list);
+            case 'bv':
+                return plugin.list_bounce_id_verp(next, trans, recip, key, list);
+            case 'bw':
+                return plugin.list_bounce_verp_only(next, trans, recip, key, list);
             default:
                 plugin.logerror("No such list command: " + command + " for list: " + list.email);
                 return next(recip)
@@ -118,7 +115,7 @@ exports.bounce_non_member = function (next, trans, list) {
 
     var verp = verp_email(to.address());
 
-    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+    var from = list.email.replace('@', '-bw-' + verp + '@');
 
     var contents = [
         "From: " + list.email.replace('@', '-help@'),
@@ -154,7 +151,7 @@ exports.bounce_rejected = function (next, trans, list) {
 
     var verp = verp_email(to.address());
 
-    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+    var from = list.email.replace('@', '-bw-' + verp + '@');
 
     var contents = [
         "From: " + list.email.replace('@', '-help@'),
@@ -230,7 +227,7 @@ exports.send_list_mail = function (next, trans, list) {
                         var to = users[i].email;
                         var verp = verp_email(to);
 
-                        var from = list.email.replace('@', '-bouncev-' + id + '-' + verp + '@');
+                        var from = list.email.replace('@', '-bv-' + id + '-' + verp + '@');
                         
                         var outnext = function (code, msg) {
                             num_to_send--;
@@ -251,24 +248,26 @@ exports.send_to_moderation_queue = function (next, trans, list) {
     // TODO
 }
 
-// bounce for initial subscribe messages
-exports.list_bounce = function (next, trans, key, list) {
+// bounce for initial subscribe messages with key
+exports.list_bounce_key = function (next, trans, key, list) {
     var plugin = this;
     users.get_user_by_key(key, function (user) {
         if (!user) {
             return next();
         }
-        plugin.process_bounce(next, trans, user, list);
+
+        plugin.loginfo("user suffered a bounce on initial subscribe")
+        return us
     })
 }
 
-// bounce for normal verp messages
-exports.list_bouncev = function (next, trans, key, list) {
+// bounce for normal messages with verp and id.
+exports.list_bounce_id_verp = function (next, trans, key, list) {
     var plugin = this;
     var matches = key.match(/^(\w+)-(.*)$/);
     if (!matches) {
         // email is in wrong format. Odd!
-        this.logerror("Email matching bouncev is in wrong format");
+        this.logerror("Email matching bv is in wrong format");
         return next();
     }
 
@@ -282,6 +281,12 @@ exports.list_bouncev = function (next, trans, key, list) {
         plugin.process_bounce(next, trans, user, msg_id, list);
     })
 }
+
+exports.list_bounce_verp = function (next, trans, key, list) {
+    
+}
+
+exports.list_bounce_verp
 
 var MAX_BOUNCES = 5;
 
@@ -391,7 +396,7 @@ exports.list_subscribe_send_confirm = function (next, user, trans, recip, list) 
         }
 
         var to = trans.mail_from;
-        var from = list.email.replace('@', '-bounce-' + key + '@');
+        var from = list.email.replace('@', '-bk-' + key + '@');
 
         // TODO: Get the contents of this from the DB for each list
         var contents = [
@@ -441,7 +446,7 @@ exports.send_welcome_email = function (next, trans, recip, user, list) {
 
     var verp = verp_email(to.address());
 
-    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+    var from = list.email.replace('@', '-bw-' + verp + '@');
 
     var contents = [
         "From: " + list.email.replace('@', '-help@'),
@@ -494,7 +499,7 @@ exports.send_goodbye_email = function (next, trans, recip, list) {
 
     var verp = verp_email(to.address());
 
-    var from = list.email.replace('@', '-bouncev-' + verp + '@');
+    var from = list.email.replace('@', '-bw-' + verp + '@');
 
     var contents = [
         "From: " + list.email.replace('@', '-help@'),
