@@ -1,5 +1,5 @@
 var cluster = require('cluster')
-  , app = require('./app/app');
+  , app = require('./app');
 
 cluster(app)
   .use(cluster.logger('logs'))
