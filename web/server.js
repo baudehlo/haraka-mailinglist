@@ -1,5 +1,5 @@
 var cluster = require('cluster')
-  , app = require('./app/app');
+  , app = require('./app');
 
 cluster(app)
   .use(cluster.logger('logs'))
@@ -7,4 +7,4 @@ cluster(app)
   .use(cluster.pidfiles('pids'))
   .use(cluster.cli())
 //  .use(cluster.repl(8888))
-  .listen(5000);
+  .listen(8006);
