@@ -30,7 +30,7 @@ router.notFound(function(req, res) { // redirect home if request is unknown
 	});
 });
 
-module.exports = http.createServer(router);
+module.exports = http.createServer(router).listen(8006);
 
 http.IncomingMessage.prototype.__defineGetter__('isSignedIn', function(){
 	if( this.session.data.user != null) return true; // this.session && this.session.data && 
