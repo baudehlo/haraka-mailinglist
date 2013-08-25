@@ -4,6 +4,7 @@ var outbound    = require('./outbound');
 var utils       = require('./utils');
 var lists       = require('/opt/groupalist/list');
 var users       = require('/opt/groupalist/user');
+var async       = require('async');
 
 var commands = [
     'sub',
@@ -24,44 +25,43 @@ exports.hook_data = function (next, connection) {
 }
 
 exports.hook_queue = function (next, conn) {
+    var plugin = this;
     // copy the recipients and replace with empty list for now
     var trans = conn.transaction;
     var rcpts = trans.rcpt_to;
     trans.rcpt_to = [];
 
-    var count = rcpts.length;
-    var mynext = function (recip) {
-        count--;
-        if (recip) {
-            trans.rcpt_to.push(recip);
-        }
-        if (count === 0) {
-            if (trans.rcpt_to.length === 0) {
-                // we dealt with all the recipients
-                next(OK, "Queued");
+    async.each(rcpts, function (recip, cb) {
+        plugin.lookup_recipient(trans, recip, function (found_recip) {
+            if (found_recip) {
+                trans.rcpt_to.push(found_recip);
             }
-            else {
-                // there are recipients remaining.
-                next();
-            }
+            cb();
+        });
+    }, function (err) {
+        if (err) {
+            return next(DENY, "Failed: " + err);
         }
-    }
-
-    var list_rcpts = [];
-    for (var i=0,l=rcpts.length; i < l; i++) {
-        this.lookup_recipient(mynext, trans, rcpts[i]);
-    }
+        if (trans.rcpt_to.length === 0) {
+            return next(OK, "Mailing list mail sent");
+        }
+        return next(); // go to next queue plugin
+    });
 }
 
 // Hook for a 5xx error on outbound
 exports.hook_bounce = function (next, hmail, err) {
     // if (hmail.todo.mail_from is a list) { process bounce }
+    next();
 }
 
-exports.lookup_recipient = function (next, trans, recip) {
+exports.lookup_recipient = function (trans, recip, next) {
     this.logdebug("Checking if " + recip + " is a mailing list");
     var matches = list_re.exec(recip.user);
-    if (!matches) return next();
+    if (!matches) {
+        this.logdebug("Doesn't match the format for a list mail");
+        return next(recip);
+    }
 
     var listname = matches[1];
     var command  = matches[2];
@@ -216,28 +216,31 @@ exports.send_list_mail = function (next, trans, list) {
                     trans.add_header('List-ID', list.name + " <" + list.email.replace('@', '.') + ">");
                     trans.remove_header('List-Message-Id');
                     trans.add_header('List-Message-Id', id);
+                    if (list.reply_to_set) {
+                        trans.remove_header('Reply-To');
+                        trans.add_header('Reply-To', list.email);
+                    }
 
                     // TODO: Add other headers here too.
 
-                    var contents = trans.data_lines.join("");
+                    trans.message_stream.get_data(function (contents) {
+                        contents = contents.replace(/\r/g, '');
 
-                    var num_to_send = users.length;
-                    // for each user
-                    for (var i=0,l=users.length; i<l; i++) {
-                        var to = users[i].email;
-                        var verp = verp_email(to);
+            // users = [{email: "helpme@gmail.com"}];
 
-                        var from = list.email.replace('@', '-bv-' + id + '-' + verp + '@');
-                        
-                        var outnext = function (code, msg) {
-                            num_to_send--;
-                            if (num_to_send === 0) {
-                                next();
-                            }
-                        };
-                        
-                        outbound.send_email(from, to, contents, outnext);
-                    }
+                        // for each user
+                        async.each(users, function (user, cb) {
+                            var to = user.email;
+                            var verp = verp_email(to);
+
+                            var from = list.email.replace('@', '-bv-' + id + '-' + verp + '@');
+
+                            plugin.loginfo("Sending " + contents.length + " bytes to " + to);
+                            outbound.send_email(from, to, contents, function (code, msg) { cb() });
+                        }, function (err) {
+                            next();
+                        });
+                    });
                 })
             });
         });
