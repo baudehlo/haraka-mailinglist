@@ -18,6 +18,19 @@ var commands = [
 
 var list_re = new RegExp('^(\\w+)(?:-(' + commands.join('|') + ')(?:-([\\w\\-]+))?)?$');
 
+exports.hook_rcpt = function (next, connection, params) {
+    var rcpt = params[0];
+    this.lookup_list(connection.transaction, rcpt, function (found_recip) {
+        if (found_recip) {
+            next(OK, "Recipient is a mailing list");
+        }
+        else {
+            next();
+        }
+    });
+}
+
+
 exports.hook_data = function (next, connection) {
     // enable mail body parsing
     connection.transaction.parse_body = true;
@@ -54,6 +67,34 @@ exports.hook_bounce = function (next, hmail, err) {
     // if (hmail.todo.mail_from is a list) { process bounce }
     next();
 }
+
+exports.lookup_list = function (trans, recip, cb) {
+    this.logdebug("Checking if " + recip + " is a mailing list");
+    var matches = list_re.exec(recip.user);
+    if (!matches) {
+        this.logdebug("Doesn't match the format for a list mail");
+        return cb();
+    }
+
+    var listname = matches[1];
+    var command  = matches[2];
+    var key      = matches[3];
+
+    this.logdebug("Looking up <" + listname + "> with command: " + command + " from:" + trans.mail_from.address());
+
+    var plugin = this;
+    lists.find_list(listname + '@' + recip.host, function (list) {
+        if (list) {
+            plugin.loginfo("Found the list: " + list.email);
+            cb(true)
+        }
+        else {
+            // we didn't find the list, so just re-add the recipient and carry on.
+            cb();
+        }
+    });
+}
+
 
 exports.lookup_recipient = function (trans, recip, next) {
     this.logdebug("Checking if " + recip + " is a mailing list");
